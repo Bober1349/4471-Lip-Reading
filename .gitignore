@@ -222,3 +222,6 @@ extracted_sub/
 
 # ── Local model weights folder ───────────────────────────────────────────────
 weights/
+
+# ── Training checkpoints ─────────────────────────────────────────────────────
+checkpoints/

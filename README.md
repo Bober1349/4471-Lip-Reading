@@ -36,20 +36,26 @@ If you would like to test if GPU activated, paste into bash </br>
 
 ```
 4471-Lip-Reading/
-├── lip_extraction/        # core detection package
+├── lip_extraction/        # core package
 │   ├── detector.py        # YOLO face detection (auto GPU/CPU, auto-download weights)
 │   ├── motion.py          # optical-flow lip motion filter
-│   └── pipeline.py        # orchestrates video → mouth clips
+│   ├── pipeline.py        # orchestrates video → mouth clips
+│   ├── dataset.py         # PyTorch Dataset (subtitle ↔ clip frames)
+│   └── model.py           # LipNet: 3D-CNN + Transformer + CTC head
 ├── scripts/
 │   ├── extract.py         # motion-based mouth clip extractor
 │   ├── clean_subtitles.py # parse & reconstruct YouTube VTT into clean sentences
-│   └── crop_and_filter.py # subtitle-aligned crop + face consistency filter
+│   ├── crop_and_filter.py # subtitle-aligned crop + face consistency filter
+│   └── train.py           # train the LipNet model
+├── weights/               # YOLO model weights (gitignored)
+├── checkpoints/           # training checkpoints (gitignored)
 ├── tests/
 │   └── test_detector.py
-├── youtube/               # downloaded media (video + subtitles)
-│   └── OpenU/
-├── extracted_clips/       # output clips from extract.py / crop_and_filter.py
-├── extracted_sub/         # output subtitle files
+├── youtube/               # downloaded media (gitignored)
+│   ├── OpenU/
+│   └── TVBNews/
+├── extracted_clips/       # cropped clips (gitignored)
+├── extracted_sub/         # subtitle outputs (gitignored)
 └── README.md
 ```
 
@@ -149,4 +155,73 @@ python3 -m scripts.clean_subtitles "youtube/OpenU/video [id].yue-orig.vtt"
 python3 -m scripts.crop_and_filter \
     "youtube/OpenU/video_merged.mp4" \
     "extracted_sub/video_clean.txt"
+
+# 5. Train
+python3 -m scripts.train \
+    "extracted_sub/video_clean_filtered.txt" \
+    "extracted_clips/video_merged/"
 ```
+
+---
+
+## 4. Train the lip reading model
+
+Trains **LipNet** — a 3D-CNN + Transformer encoder + CTC head — on your subtitle-aligned clips.
+
+```bash
+python3 -m scripts.train \
+    "extracted_sub/video_clean_filtered.txt" \
+    "extracted_clips/video_merged/"
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `subtitle` | — | `_filtered.txt` from crop_and_filter |
+| `clips_dir` | — | Directory of `.mp4` clip files |
+| `--epochs` | `50` | Number of training epochs |
+| `--batch-size` | `4` | Batch size (reduce if VRAM limited) |
+| `--lr` | `3e-4` | Peak learning rate |
+| `--d-model` | `256` | Transformer hidden size |
+| `--num-layers` | `4` | Transformer encoder depth |
+| `--max-frames` | `100` | Max frames per clip (clips are padded/truncated) |
+| `--checkpoint-dir` | `checkpoints` | Where to save weights |
+| `--resume` | `None` | Path to checkpoint to resume from |
+| `--device` | `auto` | `auto` \| `cpu` \| `cuda` |
+
+Outputs:
+```
+checkpoints/
+├── vocab.json              ← character vocabulary
+├── best.pt                 ← best validation loss checkpoint
+├── ckpt_epoch_001.pt
+├── ckpt_epoch_002.pt
+└── ...
+```
+
+### Model architecture
+
+```
+Input: (B, T, 1, 88, 88) grayscale frames
+  │
+  ▼
+3D-CNN Frontend
+  Conv3D 1→32 → BN → ReLU → MaxPool
+  Conv3D 32→64 → BN → ReLU → MaxPool
+  Conv3D 64→128 → BN → ReLU → AdaptiveAvgPool
+  │  collapses spatial dims
+  ▼
+Linear projection → (B, T', 256)
+  │
+  ▼
+Transformer Encoder (4 layers, 4 heads, Pre-LN)
+  │
+  ▼
+Linear → log-softmax → (B, T', vocab_size)
+  │
+  CTC Loss (no forced alignment, blank = index 0)
+```
+
+### Notes on data size
+- A single 45-min video typically yields ~300–1000 usable clips after filtering
+- For good generalisation, aim for **5,000+ clips** across multiple speakers/videos
+- Download more videos and run the full pipeline on each to grow the dataset
