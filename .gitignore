@@ -179,3 +179,46 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# ── Media & large binary files ──────────────────────────────────────────────
+# Videos
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.webm
+*.m4v
+*.flv
+
+# Audio
+*.mp3
+*.m4a
+*.aac
+*.wav
+*.ogg
+*.opus
+*.flac
+
+# Images (bulk dataset files)
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+*.webp
+
+# ── Downloaded YouTube media ─────────────────────────────────────────────────
+youtube/
+
+# ── Pipeline output directories ──────────────────────────────────────────────
+extracted_clips/
+extracted_sub/
+
+# ── YOLO model weights ───────────────────────────────────────────────────────
+*.pt
+*.pth
+*.onnx
+*.engine
+*.weights
+
+# ── Local model weights folder ───────────────────────────────────────────────
+weights/
